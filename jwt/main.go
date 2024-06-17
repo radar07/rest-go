@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,8 +17,8 @@ var users = map[string]string{"pranav": "radar"}
 var secret = []byte("mysecretkey")
 
 type Response struct {
-	Token  string
-	Status string
+	Token  string `json:"token"`
+	Status string `json:"status"`
 }
 
 // func validateJWT(t string) (*jwt.Token, error) {
@@ -30,7 +31,8 @@ type Response struct {
 // }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	tokenString := r.Header.Get("Authorization")
+	bearerToken := r.Header.Get("Authorization")
+	tokenString := strings.Split(bearerToken, " ")[1]
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("invalid signing method: %v", t.Header["alg"])
@@ -45,8 +47,9 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		response := map[string]string{"user": claims["username"].(string)}
+		response := map[string]string{"user": claims["username"].(string), "time": time.Now().String()}
 		responseJSON, _ := json.Marshal(response)
+		w.Header().Add("Content-Type", "application/json")
 		w.Write(responseJSON)
 	}
 }
@@ -73,10 +76,10 @@ func getTokenHandler(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadGateway)
 			}
 
-			// response := Response{Token: tokenString, Status: "success"}
-			// responseJSON, _ := json.Marshal(response)
-			// w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(tokenString))
+			response := Response{Token: tokenString, Status: "success"}
+			responseJSON, _ := json.Marshal(response)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(responseJSON)
 			w.WriteHeader(http.StatusAccepted)
 			return
 		} else {
